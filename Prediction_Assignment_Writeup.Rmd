@@ -1,0 +1,114 @@
+---
+title: "Prediction Assignment Writeup"
+author: "Ante Romic"
+date: "28 February 2016"
+output: html_document
+---
+
+## Summary
+
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, the idea is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants.
+
+The goal of this project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. We use any of the other variables to predict with. We create a report describing how the model is built, how we use cross validation, what we think the expected out of sample error is, and why we made the choices we did. We will also use the prediction model to predict 20 different test cases.
+
+## Data
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+```{r}
+if (!file.exists("./pml-training.csv")) {
+    download.file("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", 
+        destfile = "./pml-training.csv")
+}
+if (!file.exists("./pml-testing.csv")) {
+    download.file("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", 
+        destfile = "./pml-testing.csv")
+}
+
+training <- read.csv("./pml-training.csv",na.strings=c("NA","","#DIV/0!"))
+testing <- read.csv("./pml-testing.csv",na.strings=c("NA","","#DIV/0!"))
+```
+
+##Data Pre-processing
+
+First we split training data into train and test data samples in 30/70 ratio (computation time).
+
+```{r}
+library(caret)
+
+set.seed(1234)
+
+inTrain <- createDataPartition(y = training$classe, list = FALSE, p=0.3)
+t.train <- training[inTrain,]
+t.test <- training[-inTrain,]
+```
+
+We find significant number of NA values in dataset (63.08%),
+
+```{r}
+naS<-table(is.na(t.train))
+naS['FALSE']/naS['TRUE']
+```
+
+so we remove the variables that contain mostly (>70%) NA values.
+
+```{r}
+naP <- colSums(is.na(t.train))/nrow(t.train)
+pNAC <- which(naP > 0.70)
+
+set.seed(1256)
+
+t.train <- t.train[,-pNAC]
+```
+
+Also, we remove 'X', 'user_name', 'cvtd_timestamp' and near zero variance columns.
+
+```{r}
+t.train <- t.train[,-grep("X|user_name|cvtd_timestamp",names(t.train))]
+t.train <- t.train[,-nearZeroVar(t.train)]
+```
+
+Finaly, list of potential predictors are given below:
+
+```{r}
+names(t.train[,-grep("classe",names(t.train))])
+```
+
+##Model
+We use random forest model with 5 fold cross validation.
+```{r}
+set.seed(123)
+modelFit<-train(classe~.,data=t.train,method="rf",
+                trControl=trainControl(method="cv",number=5),
+                prox=TRUE,allowParallel=TRUE)
+print(modelFit)
+```
+
+Model displays excelent accuracy.
+
+##Evaluation
+
+We validate it on reminder of training data set.
+
+```{r}
+t.predict<-predict(modelFit, t.test)
+confusionMatrix(t.predict, t.test[,'classe'])
+```
+
+Moreover, model displays excelent accuracy, and we finally use it on testing data to predict outcomes.
+
+```{r}
+final.predict<-predict(modelFit, testing)
+final.predict
+```
+
+##Conclusion
+
+Given that the model obtained using the initial approach appears to be highly successful by all available measures, further exploration of the matter does not seem to be necessary.
